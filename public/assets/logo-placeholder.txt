@@ -1,0 +1,7 @@
+Logo placeholder - The AvlokAI logo image should be placed here as logo.png
+
+To complete the logo setup:
+1. Save the AvlokAI logo image as: public/assets/logo.png
+2. The logo should be the image with the eye/AI design you provided
+
+The code has been updated to reference: /assets/logo.png
