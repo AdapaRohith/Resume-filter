@@ -43,23 +43,16 @@ export default function CandidateDetail() {
 
   const handleSendEmail = async () => {
     setEmailSending(true)
-    
+
     // Simulate email sending
     await new Promise(resolve => setTimeout(resolve, 1500))
-    
+
     // In a real application, you would call your backend API here
-    // await fetch('/api/send-email', {
-    //   method: 'POST',
-    //   body: JSON.stringify({
-    //     to: candidate.email,
-    //     subject: emailSubject,
-    //     body: emailBody
-    //   })
-    // })
-    
+    // const response = await fetch('https://api.example.com/send-email', ...)
+
     setEmailSending(false)
     setEmailSent(true)
-    
+
     setTimeout(() => {
       setShowEmailModal(false)
       setEmailSent(false)
@@ -138,7 +131,7 @@ export default function CandidateDetail() {
             </div>
 
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => {
                   setShowEmailModal(true)
                   handleEmailTypeChange('custom')
@@ -150,7 +143,7 @@ export default function CandidateDetail() {
               </button>
               {candidate.resumeUrl && (
                 <>
-                  <button 
+                  <button
                     onClick={() => setShowResumeModal(true)}
                     className="btn-secondary flex items-center gap-2"
                   >
@@ -479,44 +472,40 @@ export default function CandidateDetail() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <button
                     onClick={() => handleEmailTypeChange('shortlist')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      emailType === 'shortlist'
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${emailType === 'shortlist'
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-2 border-green-500'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
+                      }`}
                     disabled={emailSending}
                   >
                     ✓ Shortlist
                   </button>
                   <button
                     onClick={() => handleEmailTypeChange('rejection')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      emailType === 'rejection'
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${emailType === 'rejection'
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-2 border-red-500'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
+                      }`}
                     disabled={emailSending}
                   >
                     ✗ Rejection
                   </button>
                   <button
                     onClick={() => handleEmailTypeChange('interview')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      emailType === 'interview'
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${emailType === 'interview'
                         ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-2 border-blue-500'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
+                      }`}
                     disabled={emailSending}
                   >
                     📅 Interview
                   </button>
                   <button
                     onClick={() => handleEmailTypeChange('custom')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      emailType === 'custom'
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${emailType === 'custom'
                         ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-2 border-purple-500'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
+                      }`}
                     disabled={emailSending}
                   >
                     ✏️ Custom

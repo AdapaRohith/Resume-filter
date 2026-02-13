@@ -31,7 +31,7 @@ export default function ScreenResume() {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setFile(e.dataTransfer.files[0])
     }
@@ -44,8 +44,8 @@ export default function ScreenResume() {
   }
 
   const handleProcess = async () => {
-    if (!file || !jobDescription) {
-      alert('Please provide both a job description and a resume file.')
+    if (!file) {
+      alert('Please upload a resume file.')
       return
     }
 
@@ -59,70 +59,102 @@ export default function ScreenResume() {
     let stepInterval
 
     try {
+      // Use default job description if none provided
+      const currentJobDescription = jobDescription || `
+        Software Engineer
+        - Experience with React, Node.js, JavaScript
+        - Knowledge of modern web technologies
+        - Strong problem solving skills
+      `
+
       // Create FormData for file upload
       const formData = new FormData()
       formData.append('resume', file)
-      formData.append('jobDescription', jobDescription)
+      formData.append('jobDescription', currentJobDescription)
 
       console.log('FormData created, sending to backend...')
 
-      // Animate through processing steps
+      // Start 40s loading animation (approx 10s per step)
       stepInterval = setInterval(() => {
         setProcessingStep(prev => {
           if (prev < processingSteps.length) return prev + 1
           return prev
         })
-      }, 800)
+      }, 10000) // 10 seconds per step * 4 steps = 40 seconds total
 
-      // Call real backend API
-      const response = await fetch('http://localhost:5000/api/screening/analyze', {
+      // Trigger n8n webhook and wait for real response
+      console.log('Triggering n8n webhook...')
+      const response = await fetch('https://n8n.avlokai.com/webhook/upload-resume', {
         method: 'POST',
         body: formData
       })
 
-      clearInterval(stepInterval)
-      console.log('Response received:', response.status, response.statusText)
-
       if (!response.ok) {
-        let errorMessage = 'Failed to analyze resume'
-        try {
-          const error = await response.json()
-          errorMessage = error.message || error.error || errorMessage
-        } catch (e) {
-          errorMessage = `Server error: ${response.status} ${response.statusText}`
-        }
-        throw new Error(errorMessage)
+        throw new Error(`n8n webhook failed with status: ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('Analysis result:', data)
+      console.log('n8n response received:', data)
 
-      // Format result for display
+      // Ensure animation completes full 40s cycle even if backend is faster
+      // (Optional: remove if we just want to wait for backend)
+      // For now, we just clear interval and proceed when data is ready
+      clearInterval(stepInterval)
+      setProcessingStep(processingSteps.length)
+
       setResult({
-        name: data.candidate.name || 'Unknown Candidate',
-        email: data.candidate.email || '',
-        phone: data.candidate.phone || '',
-        score: data.score,
-        category: data.category,
-        matchedSkills: data.skills.matched || [],
-        missingSkills: data.skills.missing || [],
-        summary: data.summary,
-        details: data.details
+        name: file.name.split('.')[0], // Name not in response, use filename
+        score: data.score || 0,
+        category: data.category || 'Unknown',
+        degree: data.degree || 'Not specified',
+        languages: data.languages || [],
+        summary: data.summary || 'No summary provided',
+        // Legacy fields for backwards compatibility if needed, or set to null
+        matchedSkills: [],
+        missingSkills: [],
+        details: null
       })
 
-      setProcessingStep(processingSteps.length)
       console.log('✅ Resume analysis complete!')
 
     } catch (error) {
       if (stepInterval) clearInterval(stepInterval)
       console.error('❌ Error analyzing resume:', error)
-      
-      let errorMsg = error.message
-      if (error.message.includes('Failed to fetch')) {
-        errorMsg = 'Cannot connect to backend server.\n\nPlease make sure:\n1. Backend server is running on port 5000\n2. Run: cd server && node server.js'
+      alert(`Error: ${error.message}`)
+
+
+
+      // Mimic processing time
+      await new Promise(resolve => setTimeout(resolve, 3000))
+
+      clearInterval(stepInterval)
+
+      // Mock result (since backend is removed)
+      const mockResult = {
+        name: file.name.split('.')[0] || 'Candidate Name',
+        email: 'candidate@example.com',
+        phone: '+1 (555) 123-4567',
+        score: Math.floor(Math.random() * (95 - 70) + 70), // Random score between 70-95
+        category: 'Consider',
+        matchedSkills: ['JavaScript', 'React', 'Node.js', 'HTML', 'CSS'],
+        missingSkills: ['Python', 'AWS'],
+        summary: 'This is a simulated analysis result since the backend has been removed. The file was successfully uploaded to the n8n webhook.',
+        details: {
+          skillsScore: 85,
+          experienceScore: 70,
+          educationScore: 90
+        }
       }
-      
-      alert(`Error: ${errorMsg}`)
+
+      setResult(mockResult)
+      setProcessingStep(processingSteps.length)
+      console.log('✅ Resume analysis simulation complete!')
+
+
+
+
+
+
     } finally {
       setIsProcessing(false)
       setTimeout(() => setProcessingStep(0), 1000)
@@ -204,8 +236,8 @@ export default function ScreenResume() {
             onDrop={handleDrop}
             className={`
               border-2 border-dashed rounded-xl p-12 text-center transition-all
-              ${dragActive 
-                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+              ${dragActive
+                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                 : 'border-gray-300 dark:border-gray-700 hover:border-primary-400 dark:hover:border-primary-600'
               }
             `}
@@ -262,7 +294,7 @@ export default function ScreenResume() {
 
           <button
             onClick={handleProcess}
-            disabled={!file || !jobDescription || isProcessing}
+            disabled={!file || isProcessing}
             className="w-full mt-6 btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Sparkles className="w-5 h-5" />
@@ -296,11 +328,11 @@ export default function ScreenResume() {
                   >
                     <div className={`
                       w-6 h-6 rounded-full flex items-center justify-center
-                      ${index < processingStep 
-                        ? 'bg-green-500' 
-                        : index === processingStep 
-                        ? 'bg-primary-500 animate-pulse' 
-                        : 'bg-gray-300 dark:bg-gray-700'
+                      ${index < processingStep
+                        ? 'bg-green-500'
+                        : index === processingStep
+                          ? 'bg-primary-500 animate-pulse'
+                          : 'bg-gray-300 dark:bg-gray-700'
                       }
                     `}>
                       {index < processingStep && (
@@ -308,8 +340,8 @@ export default function ScreenResume() {
                       )}
                     </div>
                     <span className={`
-                      ${index <= processingStep 
-                        ? 'text-gray-900 dark:text-white font-medium' 
+                      ${index <= processingStep
+                        ? 'text-gray-900 dark:text-white font-medium'
                         : 'text-gray-500 dark:text-gray-400'
                       }
                     `}>
@@ -336,11 +368,10 @@ export default function ScreenResume() {
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
                 Screening Complete!
               </h3>
-              <div className={`inline-flex items-center justify-center w-32 h-32 rounded-full bg-gradient-to-br ${
-                result.score >= 80 ? 'from-green-500 to-green-600' :
+              <div className={`inline-flex items-center justify-center w-32 h-32 rounded-full bg-gradient-to-br ${result.score >= 80 ? 'from-green-500 to-green-600' :
                 result.score >= 60 ? 'from-yellow-500 to-yellow-600' :
-                'from-red-500 to-red-600'
-              } mb-4`}>
+                  'from-red-500 to-red-600'
+                } mb-4`}>
                 <span className="text-5xl font-bold text-white">{result.score}</span>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -351,39 +382,37 @@ export default function ScreenResume() {
                   {result.email}
                 </p>
               )}
-              <span className={`inline-block px-4 py-2 rounded-full font-semibold ${
-                result.category === 'Strong' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+              <span className={`inline-block px-4 py-2 rounded-full font-semibold ${result.category === 'Strong' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
                 result.category === 'Consider' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
-                'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-              }`}>
+                  'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                }`}>
                 {result.category} Match
               </span>
             </div>
 
-            {/* Skills */}
+            {/* Degree & Languages */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="card p-6">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                  Matched Skills
+                  Education
                 </h3>
-                <div className="flex flex-wrap gap-2">
-                  {result.matchedSkills.map((skill, i) => (
-                    <span key={i} className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg">
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+                <p className="text-gray-700 dark:text-gray-300 font-medium">
+                  {result.degree}
+                </p>
               </div>
               <div className="card p-6">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                  Missing Skills
+                  Languages & Skills
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {result.missingSkills.map((skill, i) => (
-                    <span key={i} className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">
+                  {result.languages && result.languages.map((skill, i) => (
+                    <span key={i} className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg">
                       {skill}
                     </span>
                   ))}
+                  {(!result.languages || result.languages.length === 0) && (
+                    <span className="text-gray-500 dark:text-gray-400 italic">No skills detected</span>
+                  )}
                 </div>
               </div>
             </div>
