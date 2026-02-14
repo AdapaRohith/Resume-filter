@@ -43,6 +43,8 @@ export default function ScreenResume() {
     }
   }
 
+  const [error, setError] = useState(null)
+  
   const handleProcess = async () => {
     if (!file) {
       alert('Please upload a resume file.')
@@ -55,6 +57,7 @@ export default function ScreenResume() {
 
     setIsProcessing(true)
     setResult(null)
+    setError(null)
 
     let stepInterval
 
@@ -72,6 +75,11 @@ export default function ScreenResume() {
       formData.append('resume', file)
       formData.append('jobDescription', currentJobDescription)
 
+      // Debug: Log FormData entries
+      for (let [key, value] of formData.entries()) {
+        console.log(`FormData: ${key} = ${value instanceof File ? value.name : value}`)
+      }
+
       console.log('FormData created, sending to backend...')
 
       // Start 40s loading animation (approx 10s per step)
@@ -83,22 +91,21 @@ export default function ScreenResume() {
       }, 10000) // 10 seconds per step * 4 steps = 40 seconds total
 
       // Trigger n8n webhook and wait for real response
-      console.log('Triggering n8n webhook...')
+      console.log('Triggering n8n webhook to https://n8n.avlokai.com/webhook/upload-resume...')
       const response = await fetch('https://n8n.avlokai.com/webhook/upload-resume', {
         method: 'POST',
-        body: formData
+        body: formData,
+        // mode: 'cors', // Ensure CORS is handled
       })
 
       if (!response.ok) {
-        throw new Error(`n8n webhook failed with status: ${response.status}`)
+        const errorText = await response.text().catch(() => 'No error details provided')
+        throw new Error(`Server responded with ${response.status}: ${errorText.substring(0, 100)}`)
       }
 
       const data = await response.json()
       console.log('n8n response received:', data)
 
-      // Ensure animation completes full 40s cycle even if backend is faster
-      // (Optional: remove if we just want to wait for backend)
-      // For now, we just clear interval and proceed when data is ready
       clearInterval(stepInterval)
       setProcessingStep(processingSteps.length)
 
@@ -109,7 +116,7 @@ export default function ScreenResume() {
         degree: data.degree || 'Not specified',
         languages: data.languages || [],
         summary: data.summary || 'No summary provided',
-        // Legacy fields for backwards compatibility if needed, or set to null
+        // Legacy fields for backwards compatibility
         matchedSkills: [],
         missingSkills: [],
         details: null
@@ -120,41 +127,18 @@ export default function ScreenResume() {
     } catch (error) {
       if (stepInterval) clearInterval(stepInterval)
       console.error('❌ Error analyzing resume:', error)
-      alert(`Error: ${error.message}`)
-
-
-
-      // Mimic processing time
-      await new Promise(resolve => setTimeout(resolve, 3000))
-
-      clearInterval(stepInterval)
-
-      // Mock result (since backend is removed)
-      const mockResult = {
-        name: file.name.split('.')[0] || 'Candidate Name',
-        email: 'candidate@example.com',
-        phone: '+1 (555) 123-4567',
-        score: Math.floor(Math.random() * (95 - 70) + 70), // Random score between 70-95
-        category: 'Consider',
-        matchedSkills: ['JavaScript', 'React', 'Node.js', 'HTML', 'CSS'],
-        missingSkills: ['Python', 'AWS'],
-        summary: 'This is a simulated analysis result since the backend has been removed. The file was successfully uploaded to the n8n webhook.',
-        details: {
-          skillsScore: 85,
-          experienceScore: 70,
-          educationScore: 90
-        }
+      
+      let errorMessage = error.message
+      if (errorMessage.includes('Failed to fetch')) {
+        errorMessage = 'Unable to connect to the server (Network Error). Please check your internet connection or if the n8n server is reachable.'
       }
-
-      setResult(mockResult)
-      setProcessingStep(processingSteps.length)
-      console.log('✅ Resume analysis simulation complete!')
-
-
-
-
-
-
+      
+      setError(errorMessage)
+      
+      // Fallback to simulation after a delay if desired, or just show error
+      // Uncommenting the below line would enable "simulation mode" on error
+      // runSimulation(file) 
+      
     } finally {
       setIsProcessing(false)
       setTimeout(() => setProcessingStep(0), 1000)
@@ -355,9 +339,33 @@ export default function ScreenResume() {
         )}
       </AnimatePresence>
 
+      {/* Error Message */}
+      <AnimatePresence>
+        {error && (
+            <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="card p-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+            >
+            <div className="flex items-center gap-3 text-red-700 dark:text-red-400">
+                <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-full">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                </div>
+                <div>
+                <h3 className="font-bold">Error</h3>
+                <p>{error}</p>
+                </div>
+            </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Results */}
       <AnimatePresence>
-        {result && !isProcessing && (
+        {result && !isProcessing && !error && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
