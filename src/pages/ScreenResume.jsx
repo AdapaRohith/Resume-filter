@@ -10,6 +10,9 @@ export default function ScreenResume() {
   const [result, setResult] = useState(null)
   const [dragActive, setDragActive] = useState(false)
 
+  // Dev-only toggle state
+  const [useProductionWebhook, setUseProductionWebhook] = useState(false)
+
   const processingSteps = [
     'Extracting resume data',
     'Matching skills',
@@ -44,10 +47,15 @@ export default function ScreenResume() {
   }
 
   const [error, setError] = useState(null)
-  
+
   const handleProcess = async () => {
     if (!file) {
-      alert('Please upload a resume file.')
+      setError('Please upload a resume file.')
+      return
+    }
+
+    if (!jobDescription || !jobDescription.trim()) {
+      setError('Please enter a job description.')
       return
     }
 
@@ -62,18 +70,10 @@ export default function ScreenResume() {
     let stepInterval
 
     try {
-      // Use default job description if none provided
-      const currentJobDescription = jobDescription || `
-        Software Engineer
-        - Experience with React, Node.js, JavaScript
-        - Knowledge of modern web technologies
-        - Strong problem solving skills
-      `
-
       // Create FormData for file upload
       const formData = new FormData()
       formData.append('resume', file)
-      formData.append('jobDescription', currentJobDescription)
+      formData.append('jobDescription', jobDescription)
 
       // Debug: Log FormData entries
       for (let [key, value] of formData.entries()) {
@@ -91,8 +91,17 @@ export default function ScreenResume() {
       }, 10000) // 10 seconds per step * 4 steps = 40 seconds total
 
       // Trigger n8n webhook and wait for real response
-      console.log('Triggering n8n webhook to https://n8n.avlokai.com/webhook/upload-resume...')
-      const response = await fetch('https://n8n.avlokai.com/webhook/upload-resume', {
+      // Determine URL based on dev toggle
+      let webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL
+
+      if (import.meta.env.DEV) {
+        webhookUrl = useProductionWebhook
+          ? 'https://n8n.avlokai.com/webhook/upload-resume'
+          : 'https://n8n.avlokai.com/webhook-test/upload-resume'
+      }
+
+      console.log(`Triggering n8n webhook to ${webhookUrl}...`)
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         body: formData,
         // mode: 'cors', // Ensure CORS is handled
@@ -104,18 +113,67 @@ export default function ScreenResume() {
       }
 
       const data = await response.json()
-      console.log('n8n response received:', data)
+
+      // Helper to match the key features of the resume data
+      const isResumeData = (obj) => {
+        return obj && typeof obj === 'object' && ('score' in obj || 'category' in obj || 'summary' in obj)
+      }
+
+      // Helper to find the payload recursively
+      const findDataPayload = (data) => {
+        if (!data) return {}
+        if (isResumeData(data)) return data
+
+        // Handle Array
+        if (Array.isArray(data)) {
+          // Check items in array
+          for (const item of data) {
+            const found = findDataPayload(item)
+            if (Object.keys(found).length > 0) return found
+          }
+          return {}
+        }
+
+        // Handle n8n wrapper objects
+        if (data.json) return findDataPayload(data.json)
+        if (data.body) return findDataPayload(data.body)
+        if (data.data) return findDataPayload(data.data)
+
+        return {}
+      }
+
+      let normalizedData = findDataPayload(data)
+      console.log('Normalized data:', normalizedData)
+
+      // Normalize languages (handle stringified array)
+      let languages = []
+      if (Array.isArray(normalizedData.languages)) {
+        languages = normalizedData.languages
+      } else if (typeof normalizedData.languages === 'string') {
+        try {
+          // Try parsing if it looks like JSON
+          if (normalizedData.languages.trim().startsWith('[')) {
+            languages = JSON.parse(normalizedData.languages)
+          } else {
+            // Maybe comma separated?
+            languages = normalizedData.languages.split(',').map(s => s.trim())
+          }
+        } catch (e) {
+          console.warn('Failed to parse languages:', normalizedData.languages)
+          languages = [normalizedData.languages]
+        }
+      }
 
       clearInterval(stepInterval)
       setProcessingStep(processingSteps.length)
 
       setResult({
         name: file.name.split('.')[0], // Name not in response, use filename
-        score: data.score || 0,
-        category: data.category || 'Unknown',
-        degree: data.degree || 'Not specified',
-        languages: data.languages || [],
-        summary: data.summary || 'No summary provided',
+        score: typeof normalizedData.score === 'number' ? normalizedData.score : parseFloat(normalizedData.score || 0),
+        category: normalizedData.category || 'Unknown',
+        degree: normalizedData.degree || 'Not specified',
+        languages: languages,
+        summary: normalizedData.summary || 'No summary provided',
         // Legacy fields for backwards compatibility
         matchedSkills: [],
         missingSkills: [],
@@ -127,18 +185,18 @@ export default function ScreenResume() {
     } catch (error) {
       if (stepInterval) clearInterval(stepInterval)
       console.error('❌ Error analyzing resume:', error)
-      
+
       let errorMessage = error.message
       if (errorMessage.includes('Failed to fetch')) {
         errorMessage = 'Unable to connect to the server (Network Error). Please check your internet connection or if the n8n server is reachable.'
       }
-      
+
       setError(errorMessage)
-      
+
       // Fallback to simulation after a delay if desired, or just show error
       // Uncommenting the below line would enable "simulation mode" on error
       // runSimulation(file) 
-      
+
     } finally {
       setIsProcessing(false)
       setTimeout(() => setProcessingStep(0), 1000)
@@ -155,13 +213,37 @@ export default function ScreenResume() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Screen Resume
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400">
-          Upload a resume and job description to get AI-powered screening results
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Screen Resume
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400">
+            Upload a resume and job description to get AI-powered screening results
+          </p>
+        </div>
+
+        {/* Dev Toggle */}
+        {import.meta.env.DEV && (
+          <div className="flex items-center gap-2 bg-yellow-100 p-2 rounded-lg border border-yellow-300">
+            <span className="text-xs font-bold text-yellow-800 uppercase">Dev Mode</span>
+            <label className="flex items-center cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={useProductionWebhook}
+                  onChange={(e) => setUseProductionWebhook(e.target.checked)}
+                />
+                <div className={`block w-10 h-6 rounded-full transition-colors ${useProductionWebhook ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${useProductionWebhook ? 'transform translate-x-4' : ''}`}></div>
+              </div>
+              <div className="ml-3 text-sm font-medium text-gray-700">
+                {useProductionWebhook ? 'Prod Webhook' : 'Test Webhook'}
+              </div>
+            </label>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -342,24 +424,24 @@ export default function ScreenResume() {
       {/* Error Message */}
       <AnimatePresence>
         {error && (
-            <motion.div
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             className="card p-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
-            >
+          >
             <div className="flex items-center gap-3 text-red-700 dark:text-red-400">
-                <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-full">
+              <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-full">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                </div>
-                <div>
+              </div>
+              <div>
                 <h3 className="font-bold">Error</h3>
                 <p>{error}</p>
-                </div>
+              </div>
             </div>
-            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
