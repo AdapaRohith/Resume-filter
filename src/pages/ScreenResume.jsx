@@ -91,8 +91,9 @@ export default function ScreenResume() {
       }, 10000) // 10 seconds per step * 4 steps = 40 seconds total
 
       // Trigger n8n webhook and wait for real response
-      // Determine URL based on dev toggle
-      let webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL
+      // Trigger n8n webhook and wait for real response
+      // Default to hardcoded production URL
+      let webhookUrl = 'https://n8n.avlokai.com/webhook/upload-resume'
 
       if (import.meta.env.DEV) {
         webhookUrl = useProductionWebhook
