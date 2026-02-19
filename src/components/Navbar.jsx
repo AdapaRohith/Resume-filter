@@ -14,15 +14,16 @@ export default function Navbar() {
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
-  const unreadCount = notifications.filter(n => !n.read).length
-
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
 
+  const unreadCount = notifications.filter(n => !n.read).length
+
+
   const markAsRead = (id) => {
-    setNotifications(notifications.map(n => 
+    setNotifications(notifications.map(n =>
       n.id === id ? { ...n, read: true } : n
     ))
   }
@@ -81,7 +82,7 @@ export default function Navbar() {
 
           {/* Notifications */}
           <div className="relative">
-            <button 
+            <button
               onClick={() => setShowNotifications(!showNotifications)}
               className="relative p-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
             >
@@ -130,9 +131,8 @@ export default function Navbar() {
                       notifications.map((notification) => (
                         <div
                           key={notification.id}
-                          className={`p-4 border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
-                            !notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''
-                          }`}
+                          className={`p-4 border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${!notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''
+                            }`}
                         >
                           <div className="flex gap-3">
                             <div className="flex-shrink-0 mt-1">
